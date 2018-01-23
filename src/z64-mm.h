@@ -241,31 +241,31 @@ typedef struct
   z64_ctxt_t      common;                 /* 0x00000 */
   char            unk_00_[0x0078C];       /* 0x000A4 */
   z64_col_hdr_t  *col_hdr;                /* 0x00830 */
-#if Z64_VERSION == Z64_MM10U
-  char            unk_01_[0x166E8];       /* 0x00834 */
-  uint16_t        pause_state;            /* 0x16F1C */
-#elif Z64_VERSION == Z64_MM10J
+#if Z64_VERSION == Z64_MM10J
   char            unk_01_[0x166C8];       /* 0x00834 */
   uint16_t        pause_state;            /* 0x16EFC */
+#elif Z64_VERSION == Z64_MM10U
+  char            unk_01_[0x166E8];       /* 0x00834 */
+  uint16_t        pause_state;            /* 0x16F1C */
 #endif
 } z64_game_t;
 
-#if Z64_VERSION == Z64_MM10U
-
-/* dram addresses */
-#define z64_Alloc_addr                          0x80087324
-#define z64_Free_addr                           0x800874EC
-#define z64_game_arena_addr                     0x801F5100
-#define z64_ctxt_addr                           0x803E6B20
-#define z64_brk_addr                            0x80780000
-
-#elif Z64_VERSION == Z64_MM10J
+#if Z64_VERSION == Z64_MM10J
 
 /* dram addresses */
 #define z64_Alloc_addr                          0x80088000
 #define z64_Free_addr                           0x8008827C
 #define z64_game_arena_addr                     0x801F5280
 #define z64_ctxt_addr                           0x803E6CF0
+#define z64_brk_addr                            0x80780000
+
+#elif Z64_VERSION == Z64_MM10U
+
+/* dram addresses */
+#define z64_Alloc_addr                          0x80087324
+#define z64_Free_addr                           0x800874EC
+#define z64_game_arena_addr                     0x801F5100
+#define z64_ctxt_addr                           0x803E6B20
 #define z64_brk_addr                            0x80780000
 
 #endif
