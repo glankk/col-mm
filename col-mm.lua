@@ -241,24 +241,14 @@ local z64_col_poly_t =
 
 local z64_col_type_t =
 {
-  _size       = 0x0008,
-  unk_00_     = {bitfield_t(4, 1, 31),  0x0000},
-  drop        = {bitfield_t(4, 1, 30),  0x0000},
-  special     = {bitfield_t(4, 4, 26),  0x0000},
-  interaction = {bitfield_t(4, 5, 21),  0x0000},
-  unk_01_     = {bitfield_t(4, 3, 18),  0x0000},
-  behavior    = {bitfield_t(4, 5, 13),  0x0000},
-  exit        = {bitfield_t(4, 5, 8),   0x0000},
-  camera      = {bitfield_t(4, 8, 0),   0x0000},
-  pad_00_     = {bitfield_t(4, 4, 28),  0x0004},
-  wall_damage = {bitfield_t(4, 1, 27),  0x0004},
-  unk_00_     = {bitfield_t(4, 6, 21),  0x0004},
-  unk_01_     = {bitfield_t(4, 3, 18),  0x0004},
-  hookshot    = {bitfield_t(4, 1, 17),  0x0004},
-  echo        = {bitfield_t(4, 6, 11),  0x0004},
-  unk_02_     = {bitfield_t(4, 5, 6),   0x0004},
-  terrain     = {bitfield_t(4, 2, 4),   0x0004},
-  material    = {bitfield_t(4, 4, 0),   0x0004},
+  _size         = 0x0008,
+  special       = {bitfield_t(4, 4, 26),  0x0000},
+  interaction   = {bitfield_t(4, 5, 21),  0x0000},
+  behavior      = {bitfield_t(4, 5, 13),  0x0000},
+  exit          = {bitfield_t(4, 5, 8),   0x0000},
+  wall_damage   = {bitfield_t(4, 1, 27),  0x0004},
+  hookshot      = {bitfield_t(4, 1, 17),  0x0004},
+  terrain       = {bitfield_t(4, 2, 4),   0x0004},
 }
 
 local z64_col_hdr_t = 
