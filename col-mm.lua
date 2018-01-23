@@ -508,7 +508,7 @@ function main_hook()
           sref(vn, "n", 0):_set(nx)
           sref(vn, "n", 1):_set(ny)
           sref(vn, "n", 2):_set(nz)
-          sref(vn, "a", 0):_set(0xFF)
+          sref(vn, "a"):_set(0xFF)
         end
         gSPVertex(p, vg._addr, 3, 0)
         gSP1Triangle(p, 0, 1, 2, 0)
