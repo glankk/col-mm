@@ -326,7 +326,7 @@ function gDPPipeSync(p)
 end
 
 function gDPSetPrimColor(p, m, l, r, g, b, a)
-  local hi = bitfield({0xFA, 8, 24} ,{m, 8, 8}, {l, 8, 0})
+  local hi = bitfield({0xFA, 8, 24}, {m, 8, 8}, {l, 8, 0})
   local lo = bitfield({r, 8, 24}, {g, 8, 16}, {b, 8, 8}, {a, 8, 0})
   return gfx_cmd(p, hi, lo)
 end
