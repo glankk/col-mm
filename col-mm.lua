@@ -493,8 +493,8 @@ function main_hook()
       if not skip then
         local norm = sref(poly, "norm")
         local nx = sref(norm, "x"):_get() / 0x100
-        local ny = sref(norm, "x"):_get() / 0x100
-        local nz = sref(norm, "x"):_get() / 0x100
+        local ny = sref(norm, "y"):_get() / 0x100
+        local nz = sref(norm, "z"):_get() / 0x100
         local vtx = sref(col_hdr, "vtx", deref)
         local v = {sref(vtx, sref(poly, "va"):_get()),
                    sref(vtx, sref(poly, "vb"):_get()),
