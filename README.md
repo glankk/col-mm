@@ -11,4 +11,6 @@ on how to build / patch.
 - `D-Pad Up`: Toggle collision view.
 - `D-Pad Down`: Switch mode (decal or surface)
 - `D-Pad Left`: Toggle translucency.
+- `Z + D-Pad Left`: Toggle shading.
 - `D-Pad Right`: Toggle reduction.
+- `Z + D-Pad Right`: Toggle wireframe.

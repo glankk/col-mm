@@ -188,11 +188,20 @@ local Mtx =
   f             = {u16_t, 0x0020},
 }
 
+local Vtx_t =
+{
+  _size         = 0x0010,
+  ob            = {s16_t, 0x0000},
+  flag          = {u16_t, 0x0006},
+  tc            = {s16_t, 0x0008},
+  cn            = {u8_t,  0x000C},
+}
+
 local Vtx_tn =
 {
   _size         = 0x0010,
   ob            = {s16_t, 0x0000},
-  flag          = {s16_t, 0x0006},
+  flag          = {u16_t, 0x0006},
   tc            = {s16_t, 0x0008},
   n             = {s8_t,  0x000C},
   a             = {u8_t,  0x000F},
@@ -209,9 +218,15 @@ local z64_gfx_t =
   poly_xlu      = {z64_gfx_buf_t, 0x02B8},
 }
 
+local z64_controller_t =
+{
+  pad           = {u16_t, 0x0000},
+}
+
 local z64_input_t =
 {
-  pad_pressed   = {u16_t, 0x000C},
+  raw           = {z64_controller_t,  0x0000},
+  pad_pressed   = {u16_t,             0x000C},
 }
 
 local z64_ctxt =
@@ -267,6 +282,7 @@ local z64_game =
 }
 
 -- defines
+local BUTTON_Z                  = 0x2000
 local BUTTON_D_RIGHT            = 0x0100
 local BUTTON_D_LEFT             = 0x0200
 local BUTTON_D_DOWN             = 0x0400
@@ -280,9 +296,11 @@ local col_view_disp   = addresses.brk
 local xlu
 local settings =
 {
-  col_view_xlu  = true,
-  col_view_rd   = false,
-  col_view_mode = SETTINGS_COLVIEW_DECAL,
+  col_view_xlu    = true,
+  col_view_line   = false,
+  col_view_shade  = true,
+  col_view_rd     = false,
+  col_view_mode   = SETTINGS_COLVIEW_DECAL,
 }
 
 -- code
@@ -334,8 +352,8 @@ end
 function gSP1Triangle(p, v0, v1, v2, flag)
   local v = {v0, v1, v2}
   local hi = bitfield({0x05, 8, 24},
-                      {v[1 + (0 + flag) % 3] * 2, 8, 16}, 
-                      {v[1 + (1 + flag) % 3] * 2, 8, 8}, 
+                      {v[1 + (0 + flag) % 3] * 2, 8, 16},
+                      {v[1 + (1 + flag) % 3] * 2, 8, 8},
                       {v[1 + (2 + flag) % 3] * 2, 8, 0})
   return gfx_cmd(p, hi, 0)
 end
@@ -353,6 +371,15 @@ end
 function gSPLoadGeometryMode(p, mode)
   local hi = bitfield({0xD9, 8, 24})
   return gfx_cmd(p, hi, mode)
+end
+
+function gSPLine3D(p, v0, v1, flag)
+  local v = {v0, v1}
+  local hi = bitfield({0x08, 8, 24},
+                      {v[1 + (0 + flag) % 2] * 2, 8, 16},
+                      {v[1 + (1 + flag) % 2] * 2, 8, 8},
+                      {0, 8, 0})
+  return gfx_cmd(p, hi, 0)
 end
 
 function gSPMatrix(p, matrix, param)
@@ -397,6 +424,7 @@ function guMtxIdent(mtx)
 end
 
 function main_hook()
+  local pad = sref(z64_ctxt, "input", "raw", "pad"):_get()
   local pp = sref(z64_ctxt, "input", "pad_pressed"):_get()
   if bit.band(pp, BUTTON_D_UP) == BUTTON_D_UP then
     if col_view_state == 0 then
@@ -409,10 +437,18 @@ function main_hook()
     settings.col_view_mode = 1 - settings.col_view_mode
   end
   if bit.band(pp, BUTTON_D_LEFT) == BUTTON_D_LEFT then
-    settings.col_view_xlu = not settings.col_view_xlu
+    if bit.band(pad, BUTTON_Z) == BUTTON_Z then
+      settings.col_view_shade = not settings.col_view_shade
+    else
+      settings.col_view_xlu = not settings.col_view_xlu
+    end
   end
   if bit.band(pp, BUTTON_D_RIGHT) == BUTTON_D_RIGHT then
-    settings.col_view_rd = not settings.col_view_rd
+    if bit.band(pad, BUTTON_Z) == BUTTON_Z then
+      settings.col_view_line = not settings.col_view_line
+    else
+      settings.col_view_rd = not settings.col_view_rd
+    end
   end
 
   -- build collision view display list
@@ -420,45 +456,56 @@ function main_hook()
     xlu = settings.col_view_xlu
     local col_hdr = sref(z64_game, "col_hdr", deref)
     local n_poly = sref(col_hdr, "n_poly"):_get()
-    local size = 0x10 + 9 * n_poly
+    local size = (0x10 + 0xF) + (9 + 11) * n_poly
     local p = sobj(mp_t, col_view_disp)
     local d = sobj(mp_t, col_view_disp + 8 * size)
-    gDPPipeSync(p)
-    gDPSetCycleType(p, 0x00100000) -- G_CYC_2CYCLE
-    local rm
-    local blc1
-    local blc2
     local alpha
     if xlu then
-      rm = 0x00004250 -- Z_CMP | IM_RD | CVG_DST_FULL | FORCE_BL
-      blc1 = 0x00400000 -- GBL_c1(G_BL_CLR_IN, G_BL_A_IN, G_BL_CLR_MEM, G_BL_1MA)
-      blc2 = 0x00100000 -- GBL_c2(G_BL_CLR_IN, G_BL_A_IN, G_BL_CLR_MEM, G_BL_1MA)
       alpha = 0x80
     else
-      rm = 0x00004070 -- Z_CMP | Z_UPD | IM_RD | CVG_DST_CLAMP | FORCE_BL
-      blc1 = 0x0C080000 -- GBL_c1(G_BL_CLR_IN, G_BL_0, G_BL_CLR_IN, G_BL_1)
-      blc2 = 0x03020000 -- GBL_c2(G_BL_CLR_IN, G_BL_0, G_BL_CLR_IN, G_BL_1)
       alpha = 0xFF
     end
-    if settings.col_view_mode == SETTINGS_COLVIEW_DECAL then
-      rm = bit.bor(rm, 0x00000C00) -- ZMODE_DEC
-    elseif xlu then
-      rm = bit.bor(rm, 0x00000800) -- ZMODE_XLU
-    else
-      rm = bit.bor(rm, 0x00000000) -- ZMODE_OPA
+    do
+      local rm
+      local blc1
+      local blc2
+      if xlu then
+        rm = 0x00004250 -- Z_CMP | IM_RD | CVG_DST_FULL | FORCE_BL
+        blc1 = 0x00400000 -- GBL_c1(G_BL_CLR_IN, G_BL_A_IN, G_BL_CLR_MEM, G_BL_1MA)
+        blc2 = 0x00100000 -- GBL_c2(G_BL_CLR_IN, G_BL_A_IN, G_BL_CLR_MEM, G_BL_1MA)
+      else
+        rm = 0x00004070 -- Z_CMP | Z_UPD | IM_RD | CVG_DST_CLAMP | FORCE_BL
+        blc1 = 0x0C080000 -- GBL_c1(G_BL_CLR_IN, G_BL_0, G_BL_CLR_IN, G_BL_1)
+        blc2 = 0x03020000 -- GBL_c2(G_BL_CLR_IN, G_BL_0, G_BL_CLR_IN, G_BL_1)
+      end
+      if settings.col_view_mode == SETTINGS_COLVIEW_DECAL then
+        rm = bit.bor(rm, 0x00000C00) -- ZMODE_DEC
+      elseif xlu then
+        rm = bit.bor(rm, 0x00000800) -- ZMODE_XLU
+      else
+        rm = bit.bor(rm, 0x00000000) -- ZMODE_OPA
+      end
+      gDPPipeSync(p)
+      gDPSetRenderMode(p, bit.bor(rm, blc1), bit.bor(rm, blc2))
+      gSPTexture(p,
+                 0x8000, -- qu016(0.5)
+                 0x8000, -- qu016(0.5)
+                 0,
+                 0, -- G_TX_RENDERTILE
+                 0) -- G_OFF
+      if settings.col_view_shade then
+        gDPSetCycleType(p, 0x00100000) -- G_CYC_2CYCLE
+        gDPSetCombine(p, 0x00FFFE04, 0xFF11F7FF) -- G_CC_MODE(G_CC_PRIMITIVE, G_CC_MODULATERGBA2)
+        gSPLoadGeometryMode(p, 0x00020405) -- G_SHADE | G_LIGHTING | G_ZBUFFER | G_CULL_BACK
+      else
+        gDPSetCycleType(p, 0x00000000) -- G_CYC_1CYCLE
+        gDPSetCombine(p, 0x00FFFFFF, 0xFFFDF6FB) -- G_CC_MODE(G_CC_PRIMITIVE, G_CC_PRIMITIVE)
+        gSPLoadGeometryMode(p, 0x00000401) -- G_ZBUFFER | G_CULL_BACK
+      end
+      local mtx = sobj(Mtx, gDisplayListAlloc(d, Mtx._size))
+      guMtxIdent(mtx)
+      gSPMatrix(p, mtx._addr, 0x00000002) -- G_MTX_MODELVIEW | G_MTX_LOAD
     end
-    gDPSetRenderMode(p, bit.bor(rm, blc1), bit.bor(rm, blc2))
-    gDPSetCombine(p, 0x00FFFE04, 0xFF11F7FF) -- G_CC_MODE(G_CC_PRIMITIVE, G_CC_MODULATERGBA2)
-    gSPTexture(p,
-               0x8000, -- qu016(0.5)
-               0x8000, -- qu016(0.5)
-               0,
-               0, -- G_TX_RENDERTILE
-               0) -- G_OFF
-    gSPLoadGeometryMode(p, 0x00020405) -- G_SHADE | G_LIGHTING | G_ZBUFFER | G_CULL_BACK
-    local mtx = sobj(Mtx, gDisplayListAlloc(d, Mtx._size))
-    guMtxIdent(mtx)
-    gSPMatrix(p, mtx._addr, 0x00000002) -- G_MTX_MODELVIEW | G_MTX_LOAD
     for i = 0, n_poly - 1 do
       local poly = sref(col_hdr, "poly", deref, i)
       local type = sref(col_hdr, "type", deref, sref(poly, "type"):_get())
@@ -502,6 +549,40 @@ function main_hook()
         end
         gSPVertex(p, vg._addr, 3, 0)
         gSP1Triangle(p, 0, 1, 2, 0)
+      end
+    end
+    if settings.col_view_line then
+      gDPPipeSync(p)
+      if xlu then
+        gDPSetRenderMode(p, 0x00407858, 0x00107858) -- G_RM_AA_ZB_XLU_LINE, G_RM_AA_ZB_XLU_LINE2
+      else
+        gDPSetRenderMode(p, 0x00407F58, 0x00107F58) -- G_RM_AA_ZB_DEC_LINE, G_RM_AA_ZB_DEC_LINE2
+      end
+      gDPSetCycleType(p, 0x00000000) -- G_CYC_1CYCLE
+      gDPSetCombine(p, 0x00FFFFFF, 0xFFFDF6FB) -- G_CC_MODE(G_CC_PRIMITIVE, G_CC_PRIMITIVE)
+      gSPLoadGeometryMode(p, 0x00000001) -- G_ZBUFFER
+      gDPSetPrimColor(p, 0, 0, 0x00, 0x00, 0x00, alpha)
+      for i = 0, n_poly - 1 do
+        local poly = sref(col_hdr, "poly", deref, i)
+        local vtx = sref(col_hdr, "vtx", deref)
+        local v = {sref(vtx, sref(poly, "va"):_get()),
+                   sref(vtx, sref(poly, "vb"):_get()),
+                   sref(vtx, sref(poly, "vc"):_get())}
+        local vg = sobj(Vtx_t, gDisplayListAlloc(d, Vtx_t._size * 3))
+        for i = 0, 2 do
+          local vn = sind(vg, i)
+          sref(vn, "ob", 0):_set(sref(v[1 + i], "x"):_get())
+          sref(vn, "ob", 1):_set(sref(v[1 + i], "y"):_get())
+          sref(vn, "ob", 2):_set(sref(v[1 + i], "z"):_get())
+          sref(vn, "cn", 0):_set(0x00)
+          sref(vn, "cn", 1):_set(0x00)
+          sref(vn, "cn", 2):_set(0x00)
+          sref(vn, "cn", 3):_set(0xFF)
+        end
+        gSPVertex(p, vg._addr, 3, 0)
+        gSPLine3D(p, 0, 1, 0)
+        gSPLine3D(p, 1, 2, 0)
+        gSPLine3D(p, 2, 0, 0)
       end
     end
     gSPEndDisplayList(p)
