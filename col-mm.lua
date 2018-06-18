@@ -10,30 +10,41 @@ function sobj(struct, addr, ref)
   return object
 end
 
+function isref(object)
+  local t = type(object._ref)
+  return (t == "number" or t == "integer") and object._ref > 0
+end
+
+function ssize(object)
+  if isref(object) then
+    return 4
+  else
+    return object._size
+  end
+end
+
 function deref(object)
-  if type(object._ref) ~= "number" or object._ref <= 0 then
+  if not isref(object) then
     error("object is not a reference")
   end
   return sobj(getmetatable(object).__index, mainmemory.read_u32_be(k0_to_phys(object._addr)), object._ref - 1)
 end
 
 function sind(object, index)
-  if object._ref ~= nil and object._ref ~= 0 then
-    error("object is not a value")
-  end
-  return sobj(getmetatable(object).__index, object._addr + object._size * index, object._ref)
+  return sobj(getmetatable(object).__index, object._addr + ssize(object) * index, object._ref)
 end
 
 function sref(object, ...)
   local memb = {...}
   for i = 1, #memb do
     local n = memb[i]
-    if type(n) == "function" then
+    local t = type(n)
+    if t == "function" then
       object = n(object)
-    elseif type(n) == "number" or type(n) == "integer" then
+    elseif t == "number" or t == "integer" then
       object = sind(object, n)
-    elseif type(n) == "string" then
-      if object._ref ~= nil and object._ref ~= 0 then
+    elseif t == "string" then
+      if isref(object) then
         error("object is not a value")
       end
       local m = object[n]
@@ -46,7 +57,7 @@ function sref(object, ...)
       local addr = object._addr + off
       object = sobj(struct, addr, ref)
     else
-      error("invalid object reference type `" .. type(n) .. "`")
+      error("invalid object reference type `" .. t .. "`")
     end
   end
   return object
@@ -99,10 +110,18 @@ local s8_t =
 {
   _size = 1,
   _get = function(this)
-    return mainmemory.read_s8(k0_to_phys(this._addr))
+    if isref(this) then
+      return mainmemory.read_u32_be(k0_to_phys(this._addr))
+    else
+      return mainmemory.read_s8(k0_to_phys(this._addr))
+    end
   end,
   _set = function(this, value)
-    mainmemory.write_s8(k0_to_phys(this._addr), value)
+    if isref(this) then
+      mainmemory.write_u32_be(k0_to_phys(this._addr), value)
+    else
+      mainmemory.write_s8(k0_to_phys(this._addr), value)
+    end
     return value
   end,
 }
@@ -111,10 +130,18 @@ local u8_t =
 {
   _size = 1,
   _get = function(this)
-    return mainmemory.read_u8(k0_to_phys(this._addr))
+    if isref(this) then
+      return mainmemory.read_u32_be(k0_to_phys(this._addr))
+    else
+      return mainmemory.read_u8(k0_to_phys(this._addr))
+    end
   end,
   _set = function(this, value)
-    mainmemory.write_u8(k0_to_phys(this._addr), value)
+    if isref(this) then
+      mainmemory.write_u32_be(k0_to_phys(this._addr), value)
+    else
+      mainmemory.write_u8(k0_to_phys(this._addr), value)
+    end
     return value
   end,
 }
@@ -123,10 +150,18 @@ local s16_t =
 {
   _size = 2,
   _get = function(this)
-    return mainmemory.read_s16_be(k0_to_phys(this._addr))
+    if isref(this) then
+      return mainmemory.read_u32_be(k0_to_phys(this._addr))
+    else
+      return mainmemory.read_s16_be(k0_to_phys(this._addr))
+    end
   end,
   _set = function(this, value)
-    mainmemory.write_s16_be(k0_to_phys(this._addr), value)
+    if isref(this) then
+      mainmemory.write_u32_be(k0_to_phys(this._addr), value)
+    else
+      mainmemory.write_s16_be(k0_to_phys(this._addr), value)
+    end
     return value
   end,
 }
@@ -135,10 +170,18 @@ local u16_t =
 {
   _size = 2,
   _get = function(this)
-    return mainmemory.read_u16_be(k0_to_phys(this._addr))
+    if isref(this) then
+      return mainmemory.read_u32_be(k0_to_phys(this._addr))
+    else
+      return mainmemory.read_u16_be(k0_to_phys(this._addr))
+    end
   end,
   _set = function(this, value)
-    mainmemory.write_u16_be(k0_to_phys(this._addr), value)
+    if isref(this) then
+      mainmemory.write_u32_be(k0_to_phys(this._addr), value)
+    else
+      mainmemory.write_u16_be(k0_to_phys(this._addr), value)
+    end
     return value
   end,
 }
@@ -164,7 +207,7 @@ if mainmemory.read_u32_be(0x000EBBB8) == 0x0C021A75 then
     hook        = 0x800EBBB8,
     ctxt        = 0x803E6CF0,
     brk         = 0x80780000,
-    pause_state = 0x16EFC
+    pause_state = 0x16EFC,
   }
 elseif mainmemory.read_u32_be(0x000EA048) == 0x0C021819 then
   addresses =
@@ -172,7 +215,7 @@ elseif mainmemory.read_u32_be(0x000EA048) == 0x0C021819 then
     hook        = 0x800EA048,
     ctxt        = 0x803E6B20,
     brk         = 0x80780000,
-    pause_state = 0x16F1C
+    pause_state = 0x16F1C,
   }
 else
   error("unrecognized game")
@@ -184,64 +227,64 @@ end
 local Mtx =
 {
   _size         = 0x0040,
-  i             = {s16_t, 0x0000},
-  f             = {u16_t, 0x0020},
+  i             = {s16_t,                 0x0000},
+  f             = {u16_t,                 0x0020},
 }
 
 local Vtx_t =
 {
   _size         = 0x0010,
-  ob            = {s16_t, 0x0000},
-  flag          = {u16_t, 0x0006},
-  tc            = {s16_t, 0x0008},
-  cn            = {u8_t,  0x000C},
+  ob            = {s16_t,                 0x0000},
+  flag          = {u16_t,                 0x0006},
+  tc            = {s16_t,                 0x0008},
+  cn            = {u8_t,                  0x000C},
 }
 
 local Vtx_tn =
 {
   _size         = 0x0010,
-  ob            = {s16_t, 0x0000},
-  flag          = {u16_t, 0x0006},
-  tc            = {s16_t, 0x0008},
-  n             = {s8_t,  0x000C},
-  a             = {u8_t,  0x000F},
+  ob            = {s16_t,                 0x0000},
+  flag          = {u16_t,                 0x0006},
+  tc            = {s16_t,                 0x0008},
+  n             = {s8_t,                  0x000C},
+  a             = {u8_t,                  0x000F},
 }
 
 local z64_gfx_buf_t =
 {
-  p             = {u32_t, 0x0008},
+  p             = {u32_t,                 0x0008},
 }
 
 local z64_gfx_t =
 {
-  poly_opa      = {z64_gfx_buf_t, 0x02A8},
-  poly_xlu      = {z64_gfx_buf_t, 0x02B8},
+  poly_opa      = {z64_gfx_buf_t,         0x02A8},
+  poly_xlu      = {z64_gfx_buf_t,         0x02B8},
 }
 
 local z64_controller_t =
 {
-  pad           = {u16_t, 0x0000},
+  pad           = {u16_t,                 0x0000},
 }
 
 local z64_input_t =
 {
-  raw           = {z64_controller_t,  0x0000},
-  pad_pressed   = {u16_t,             0x000C},
+  raw           = {z64_controller_t,      0x0000},
+  pad_pressed   = {u16_t,                 0x000C},
 }
 
 local z64_ctxt =
 {
   _addr         = addresses.ctxt,
-  gfx           = {z64_gfx_t,   0x0000, 1},
-  input         = {z64_input_t, 0x0014},
+  gfx           = {z64_gfx_t,             0x0000, 1},
+  input         = {z64_input_t,           0x0014},
 }
 
 local z64_xyz_t = 
 {
   _size         = 0x0006,
-  x             = {s16_t, 0x0000},
-  y             = {s16_t, 0x0002},
-  z             = {s16_t, 0x0004},
+  x             = {s16_t,                 0x0000},
+  y             = {s16_t,                 0x0002},
+  z             = {s16_t,                 0x0004},
 }
 
 local z64_col_poly_t =
@@ -268,17 +311,17 @@ local z64_col_type_t =
 
 local z64_col_hdr_t = 
 {
-  vtx           = {z64_xyz_t,       0x0010, 1},
-  n_poly        = {u16_t,           0x0014},
-  poly          = {z64_col_poly_t,  0x0018, 1},
-  type          = {z64_col_type_t,  0x001C, 1},
+  vtx           = {z64_xyz_t,             0x0010, 1},
+  n_poly        = {u16_t,                 0x0014},
+  poly          = {z64_col_poly_t,        0x0018, 1},
+  type          = {z64_col_type_t,        0x001C, 1},
 }
 
 local z64_game =
 {
   _addr         = addresses.ctxt,
-  col_hdr       = {z64_col_hdr_t, 0x00830, 1},
-  pause_state   = {u16_t,         addresses.pause_state},
+  col_hdr       = {z64_col_hdr_t,         0x00830, 1},
+  pause_state   = {u16_t,                 addresses.pause_state},
 }
 
 -- defines
@@ -502,7 +545,7 @@ function main_hook()
         gDPSetCombine(p, 0x00FFFFFF, 0xFFFDF6FB) -- G_CC_MODE(G_CC_PRIMITIVE, G_CC_PRIMITIVE)
         gSPLoadGeometryMode(p, 0x00000401) -- G_ZBUFFER | G_CULL_BACK
       end
-      local mtx = sobj(Mtx, gDisplayListAlloc(d, Mtx._size))
+      local mtx = sobj(Mtx, gDisplayListAlloc(d, ssize(Mtx)))
       guMtxIdent(mtx)
       gSPMatrix(p, mtx._addr, 0x00000002) -- G_MTX_MODELVIEW | G_MTX_LOAD
     end
@@ -536,7 +579,7 @@ function main_hook()
         local v = {sref(vtx, sref(poly, "va"):_get()),
                    sref(vtx, sref(poly, "vb"):_get()),
                    sref(vtx, sref(poly, "vc"):_get())}
-        local vg = sobj(Vtx_tn, gDisplayListAlloc(d, Vtx_tn._size * 3))
+        local vg = sobj(Vtx_tn, gDisplayListAlloc(d, ssize(Vtx_tn) * 3))
         for i = 0, 2 do
           local vn = sind(vg, i)
           sref(vn, "ob", 0):_set(sref(v[1 + i], "x"):_get())
@@ -568,7 +611,7 @@ function main_hook()
         local v = {sref(vtx, sref(poly, "va"):_get()),
                    sref(vtx, sref(poly, "vb"):_get()),
                    sref(vtx, sref(poly, "vc"):_get())}
-        local vg = sobj(Vtx_t, gDisplayListAlloc(d, Vtx_t._size * 3))
+        local vg = sobj(Vtx_t, gDisplayListAlloc(d, ssize(Vtx_t) * 3))
         for i = 0, 2 do
           local vn = sind(vg, i)
           sref(vn, "ob", 0):_set(sref(v[1 + i], "x"):_get())
